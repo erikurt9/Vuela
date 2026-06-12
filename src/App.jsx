@@ -346,6 +346,33 @@ a{color:inherit;text-decoration:none;}
 .q-explanation span{color:#3b82f6;font-weight:600;}
 
 @media(max-width:640px){.temario-body{padding:20px 16px 48px;}.temario-header{padding:36px 16px 28px;}}
+
+/* ── HISTORIAL ── */
+.hist-header{background:linear-gradient(160deg,#0f172a,#0d1b3e);border-bottom:1px solid #1e3a5f;padding:48px 32px 36px;}
+.hist-title{font-size:clamp(24px,4vw,40px);font-weight:900;color:#fff;letter-spacing:-1px;margin-bottom:8px;animation:fadeUp .5s ease both;}
+.hist-sub{font-size:14px;color:#94a3b8;animation:fadeUp .5s .1s ease both;}
+.hist-body{max-width:900px;margin:0 auto;padding:32px 32px 64px;}
+.hist-empty{text-align:center;padding:64px 32px;color:#475569;}
+.hist-empty-icon{font-size:48px;margin-bottom:16px;}
+.hist-empty-text{font-size:15px;color:#64748b;}
+.hist-item{background:#0f172a;border:1px solid #1e3a5f;border-radius:16px;padding:20px 24px;margin-bottom:14px;display:flex;align-items:center;gap:18px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.hist-item:hover{border-color:#1e4a7a;box-shadow:0 4px 24px rgba(0,0,0,.3);transform:translateX(4px);}
+.hist-score-badge{width:60px;height:60px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;font-weight:900;}
+.hist-score-pct{font-size:20px;line-height:1;}
+.hist-score-label{font-size:9px;opacity:.8;text-transform:uppercase;letter-spacing:.05em;}
+.hist-item-info{flex:1;min-width:0;}
+.hist-item-title{font-size:15px;font-weight:700;color:#fff;margin-bottom:4px;}
+.hist-item-meta{font-size:12px;color:#64748b;}
+.hist-item-weak{font-size:11px;color:#f59e0b;margin-top:5px;display:flex;align-items:center;gap:5px;}
+.hist-chip{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;flex-shrink:0;}
+.hist-detail-overlay{position:fixed;inset:0;z-index:500;background:rgba(5,10,20,0.92);backdrop-filter:blur(8px);display:flex;flex-direction:column;animation:fadeIn .25s ease;overflow-y:auto;}
+.hist-detail-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#0f172a;border-bottom:1px solid #1e3a5f;flex-shrink:0;position:sticky;top:0;z-index:10;}
+.hist-detail-content{max-width:820px;margin:0 auto;padding:32px 24px 64px;width:100%;}
+.weak-cat-banner{background:linear-gradient(135deg,#1c0f00,#292001);border:1px solid #78350f;border-radius:14px;padding:18px 22px;margin-bottom:28px;display:flex;align-items:center;gap:14px;}
+.weak-cat-icon{font-size:32px;flex-shrink:0;}
+.weak-cat-title{font-size:15px;font-weight:800;color:#fbbf24;margin-bottom:2px;}
+.weak-cat-sub{font-size:12px;color:#92400e;}
+@media(max-width:640px){.hist-body{padding:20px 16px 48px;}.hist-header{padding:36px 16px 28px;}.hist-item{padding:16px;}.hist-detail-content{padding:20px 16px 48px;}}
 `;
 
 export default function VuelaRPAS() {
@@ -365,9 +392,35 @@ export default function VuelaRPAS() {
   // temario
   const [temarioCat, setTemarioCat] = useState("Todas");
   const [openQ,      setOpenQ]      = useState(null);
+  // historial
+  const [history,    setHistory]    = useState([]);
+  const [histDetail, setHistDetail] = useState(null);
+  const [histLoaded, setHistLoaded] = useState(false);
 
   const statsRef = useRef(null);
   const fadeIn   = useFadeIn(current);
+
+  // Cargar historial desde storage al montar
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get("vuela-history");
+        if (res && res.value) setHistory(JSON.parse(res.value));
+      } catch {}
+      setHistLoaded(true);
+    })();
+  }, []);
+
+  // Guardar resultado en historial (máx 50 entradas)
+  const saveResult = useCallback(async (entry) => {
+    setHistory(prev => {
+      const updated = [entry, ...prev].slice(0, 50);
+      (async () => {
+        try { await window.storage.set("vuela-history", JSON.stringify(updated)); } catch {}
+      })();
+      return updated;
+    });
+  }, []);
 
   useEffect(() => {
     const id = "vuela-css";
@@ -404,7 +457,76 @@ export default function VuelaRPAS() {
   };
 
   const next = () => {
-    if (current + 1 >= questions.length) { setScreen(mode === "exam" ? "results" : "home"); return; }
+    if (current + 1 >= questions.length) {
+      if (mode === "exam") {
+        // calcular resultado final del examen
+        const finalResults = [...results];
+        const finalScore = finalResults.filter(r => r.correct).length;
+        const finalPct = Math.round((finalScore / EXAM_SIZE) * 100);
+        // calcular categoría más débil
+        const catStats = {};
+        finalResults.forEach(r => {
+          if (!catStats[r.q.category]) catStats[r.q.category] = { ok: 0, total: 0 };
+          catStats[r.q.category].total++;
+          if (r.correct) catStats[r.q.category].ok++;
+        });
+        let weakCat = null, weakPct = 101;
+        Object.entries(catStats).forEach(([cat, s]) => {
+          const p = Math.round((s.ok / s.total) * 100);
+          if (s.total >= 1 && p < weakPct) { weakPct = p; weakCat = cat; }
+        });
+        saveResult({
+          id: Date.now(),
+          date: new Date().toISOString(),
+          mode: "exam",
+          pct: finalPct,
+          score: finalScore,
+          total: EXAM_SIZE,
+          passed: finalPct >= PASS_SCORE,
+          weakCat,
+          weakPct,
+          catStats,
+          results: finalResults.map(r => ({ qId: r.q.id, selected: r.selected, correct: r.correct, category: r.q.category }))
+        });
+        setScreen("results");
+      } else {
+        // modo estudio — calcular stats y mostrar pantalla de resultados
+        const finalStudy = [...studyResults];
+        const total = finalStudy.length;
+        const ok = finalStudy.filter(r => r.correct).length;
+        const pctStudy = total > 0 ? Math.round((ok / total) * 100) : 0;
+        // categoría más débil
+        const catStats = {};
+        finalStudy.forEach(r => {
+          const cat = questions[r.index]?.category;
+          if (!cat) return;
+          if (!catStats[cat]) catStats[cat] = { ok: 0, total: 0 };
+          catStats[cat].total++;
+          if (r.correct) catStats[cat].ok++;
+        });
+        let weakCat = null, weakPct = 101;
+        Object.entries(catStats).forEach(([cat, s]) => {
+          const p = Math.round((s.ok / s.total) * 100);
+          if (s.total >= 1 && p < weakPct) { weakPct = p; weakCat = cat; }
+        });
+        const studyCategory = questions[0]?.category || "Todas";
+        saveResult({
+          id: Date.now(),
+          date: new Date().toISOString(),
+          mode: "study",
+          pct: pctStudy,
+          score: ok,
+          total,
+          studyCategory,
+          weakCat,
+          weakPct,
+          catStats,
+          results: finalStudy.map(r => ({ qId: questions[r.index]?.id, correct: r.correct, category: questions[r.index]?.category }))
+        });
+        setScreen("study-results");
+      }
+      return;
+    }
     setCurrent(c => c + 1); setSelected(null); setAnswered(false); setShowExp(false);
     window.scrollTo(0, 0);
   };
@@ -421,9 +543,13 @@ export default function VuelaRPAS() {
         <div className="nav-icon"><svg width="20" height="20" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="32" cy="32" rx="10" ry="6" fill="white" opacity="0.95"/><rect x="27" y="28" width="10" height="8" rx="2" fill="white" opacity="0.9"/><line x1="32" y1="28" x2="16" y2="20" stroke="white" strokeWidth="3" strokeLinecap="round"/><line x1="32" y1="28" x2="48" y2="20" stroke="white" strokeWidth="3" strokeLinecap="round"/><line x1="32" y1="36" x2="16" y2="44" stroke="white" strokeWidth="3" strokeLinecap="round"/><line x1="32" y1="36" x2="48" y2="44" stroke="white" strokeWidth="3" strokeLinecap="round"/><ellipse cx="16" cy="18" rx="6" ry="4" fill="white" opacity="0.8"/><ellipse cx="48" cy="18" rx="6" ry="4" fill="white" opacity="0.8"/><ellipse cx="16" cy="46" rx="6" ry="4" fill="white" opacity="0.8"/><ellipse cx="48" cy="46" rx="6" ry="4" fill="white" opacity="0.8"/><circle cx="32" cy="32" r="3" fill="#93c5fd"/></svg></div>
         <span className="nav-title">Vuela</span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {extraNav}
-        
+        <button onClick={() => setScreen("historial")} style={{ fontSize: 13, color: "#94a3b8", background: "transparent", border: "1px solid #1e3a5f", borderRadius: 8, padding: "6px 14px", cursor: "pointer", transition: "all .15s" }}
+          onMouseOver={e => { e.currentTarget.style.borderColor="#3b82f6"; e.currentTarget.style.color="#3b82f6"; }}
+          onMouseOut={e => { e.currentTarget.style.borderColor="#1e3a5f"; e.currentTarget.style.color="#94a3b8"; }}>
+          📈 Historial {history.length > 0 ? `(${history.length})` : ""}
+        </button>
       </div>
     </nav>
   );
@@ -905,6 +1031,261 @@ export default function VuelaRPAS() {
       </footer>
     </div>
   );
+
+  /* ═══════════ STUDY RESULTS ═══════════ */
+  if (screen === "study-results") {
+    const studyOk   = studyResults.filter(r => r.correct).length;
+    const studyTotal = studyResults.length;
+    const studyPct  = studyTotal > 0 ? Math.round((studyOk / studyTotal) * 100) : 0;
+    // categoría más débil
+    const catSt = {};
+    studyResults.forEach(r => {
+      const cat = questions[r.index]?.category;
+      if (!cat) return;
+      if (!catSt[cat]) catSt[cat] = { ok: 0, total: 0 };
+      catSt[cat].total++;
+      if (r.correct) catSt[cat].ok++;
+    });
+    let weakCatSt = null, weakPctSt = 101;
+    Object.entries(catSt).forEach(([cat, s]) => {
+      const p = Math.round((s.ok / s.total) * 100);
+      if (s.total >= 1 && p < weakPctSt) { weakPctSt = p; weakCatSt = cat; }
+    });
+    const studyEmoji = studyPct >= 80 ? "🎉" : studyPct >= 60 ? "👍" : "📚";
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0f1a" }}>
+        <Navbar />
+        <div className="results-hero">
+          <div className="results-orb" />
+          <span className="results-emoji">{studyEmoji}</span>
+          <h2 className="results-title">Sesión de estudio completada</h2>
+          <div className="results-score" style={{ color: studyPct >= 70 ? "#4ade80" : studyPct >= 50 ? "#fbbf24" : "#f87171" }}>{studyPct}%</div>
+          <p className="results-sub">{studyOk} de {studyTotal} respuestas correctas · Categoría: {questions[0]?.category || "Todas"}</p>
+          {weakCatSt && weakPctSt < 100 && (
+            <div style={{ marginTop: 20, display: "inline-flex", alignItems: "center", gap: 10, background: "#1c1000", border: "1px solid #78350f", borderRadius: 12, padding: "10px 20px", animation: "fadeUp .5s .4s ease both" }}>
+              <span>⚠️</span>
+              <span style={{ fontSize: 13, color: "#fbbf24" }}>Tu categoría más débil: <strong>{weakCatSt}</strong> ({weakPctSt}%)</span>
+            </div>
+          )}
+          <div className="results-cta">
+            <button className="btn-primary" onClick={() => startStudy(questions[0]?.category || "Todas")}>🔁 Repetir estudio</button>
+            <button className="btn-outline" onClick={() => setScreen("home")}>🏠 Inicio</button>
+            {weakCatSt && <button className="btn-outline" onClick={() => startStudy(weakCatSt)}>🎯 Practicar {weakCatSt}</button>}
+          </div>
+        </div>
+        <div className="container">
+          <div className="results-grid">
+            <div className="card" style={{ animation: "fadeUp .5s .1s ease both" }}>
+              <div className="card-header">
+                <span className="card-header-icon">📊</span>
+                <div>
+                  <div className="card-header-title">Resultados por categoría</div>
+                  <div className="card-header-sub">Detalle de tu sesión</div>
+                </div>
+              </div>
+              <div className="card-body">
+                {Object.entries(catSt).map(([cat, s], ci) => {
+                  const cp = Math.round((s.ok / s.total) * 100);
+                  return (
+                    <div key={cat} className="cat-res-row">
+                      <div className="cat-res-top">
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: CAT_COLOR[cat] || "#3b82f6" }} />
+                          <span style={{ fontSize: 13, color: "#cbd5e1" }}>{cat}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: s.ok === s.total ? "#4ade80" : s.ok === 0 ? "#f87171" : "#fbbf24" }}>{s.ok}/{s.total}</span>
+                          <button onClick={() => { setTemarioCat(cat); setScreen("temario"); }}
+                            style={{ fontSize: 11, color: "#3b82f6", background: "transparent", border: "1px solid #1e3a5f", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>
+                            Repasar
+                          </button>
+                        </div>
+                      </div>
+                      <div className="cat-res-bar">
+                        <div className="cat-res-fill" style={{ width: `${cp}%`, "--w": `${cp}%`, "--d": `${ci * 0.08}s`, background: CAT_COLOR[cat] || "#3b82f6", opacity: .85 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="card" style={{ animation: "fadeUp .5s .2s ease both" }}>
+              <div className="card-header">
+                <span className="card-header-icon">❌</span>
+                <div>
+                  <div className="card-header-title">Respuestas incorrectas</div>
+                  <div className="card-header-sub">{studyTotal - studyOk} de {studyTotal} preguntas</div>
+                </div>
+              </div>
+              <div className="card-body" style={{ maxHeight: 520, overflowY: "auto" }}>
+                {studyResults.filter(r => !r.correct).length === 0
+                  ? <p style={{ fontSize: 14, color: "#4ade80", textAlign: "center", padding: "24px 0" }}>🎉 ¡Sin ningún error!</p>
+                  : studyResults.filter(r => !r.correct).map((r, i) => {
+                    const q2 = questions[r.index];
+                    if (!q2) return null;
+                    return (
+                      <div key={i} className="wrong-item">
+                        <p className="wrong-q">{q2.question.split("\n")[0].slice(0, 90)}{q2.question.length > 90 ? "…" : ""}</p>
+                        <p className="wrong-ok">✓ Correcta: {q2.options[q2.correct]}</p>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer className="footer"><p>Vuela — Simulador de práctica RPAS</p></footer>
+      </div>
+    );
+  }
+
+  /* ═══════════ HISTORIAL ═══════════ */
+  if (screen === "historial") {
+    const formatDate = (iso) => {
+      const d = new Date(iso);
+      return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }) + " · " +
+             d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    // calcular categoría más débil global
+    const globalCat = {};
+    history.forEach(h => {
+      if (h.catStats) Object.entries(h.catStats).forEach(([cat, s]) => {
+        if (!globalCat[cat]) globalCat[cat] = { ok: 0, total: 0 };
+        globalCat[cat].ok += s.ok;
+        globalCat[cat].total += s.total;
+      });
+    });
+    let globalWeak = null, globalWeakPct = 101;
+    Object.entries(globalCat).forEach(([cat, s]) => {
+      const p = Math.round((s.ok / s.total) * 100);
+      if (s.total >= 3 && p < globalWeakPct) { globalWeakPct = p; globalWeak = cat; }
+    });
+
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0f1a" }}>
+        {histDetail && (
+          <div className="hist-detail-overlay">
+            <div className="hist-detail-bar">
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                  {histDetail.mode === "exam" ? "📝 Examen" : "📚 Estudio"} · {formatDate(histDetail.date)}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                  {histDetail.score}/{histDetail.total} correctas · {histDetail.pct}%
+                  {histDetail.mode === "exam" ? (histDetail.passed ? " · ✅ Aprobado" : " · ❌ No aprobado") : ""}
+                </div>
+              </div>
+              <button className="docviewer-close" onClick={() => setHistDetail(null)}>✕ Cerrar</button>
+            </div>
+            <div className="hist-detail-content">
+              {histDetail.weakCat && histDetail.weakPct < 100 && (
+                <div className="weak-cat-banner">
+                  <span className="weak-cat-icon">⚠️</span>
+                  <div>
+                    <div className="weak-cat-title">Categoría más débil en esta sesión</div>
+                    <div className="weak-cat-sub">{histDetail.weakCat} — {histDetail.weakPct}% de acierto. Te recomendamos practicarla.</div>
+                  </div>
+                  <button onClick={() => { setHistDetail(null); startStudy(histDetail.weakCat); }}
+                    style={{ marginLeft: "auto", fontSize: 12, color: "#fbbf24", background: "transparent", border: "1px solid #78350f", borderRadius: 8, padding: "7px 14px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    Practicar →
+                  </button>
+                </div>
+              )}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-header-icon">📊</span>
+                  <div><div className="card-header-title">Resultados por categoría</div></div>
+                </div>
+                <div className="card-body">
+                  {histDetail.catStats && Object.entries(histDetail.catStats).map(([cat, s], ci) => {
+                    const cp = Math.round((s.ok / s.total) * 100);
+                    return (
+                      <div key={cat} className="cat-res-row">
+                        <div className="cat-res-top">
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: CAT_COLOR[cat] || "#3b82f6" }} />
+                            <span style={{ fontSize: 13, color: "#cbd5e1" }}>{cat}</span>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: s.ok === s.total ? "#4ade80" : s.ok === 0 ? "#f87171" : "#fbbf24" }}>{s.ok}/{s.total} ({cp}%)</span>
+                        </div>
+                        <div className="cat-res-bar">
+                          <div className="cat-res-fill" style={{ width: `${cp}%`, "--w": `${cp}%`, "--d": `${ci * 0.06}s`, background: CAT_COLOR[cat] || "#3b82f6", opacity: .85 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <Navbar />
+        <div className="hist-header">
+          <div className="hist-title">📈 Historial de práctica</div>
+          <div className="hist-sub">{history.length} sesiones registradas en este dispositivo</div>
+        </div>
+        <div className="hist-body">
+          {history.length === 0 ? (
+            <div className="hist-empty">
+              <div className="hist-empty-icon">📭</div>
+              <div className="hist-empty-text">Aún no hay sesiones guardadas.<br/>¡Completa un examen o sesión de estudio para ver tu historial!</div>
+              <button className="btn-primary" style={{ marginTop: 24 }} onClick={() => setScreen("home")}>Ir a practicar</button>
+            </div>
+          ) : (
+            <>
+              {globalWeak && (
+                <div className="weak-cat-banner" style={{ marginBottom: 28 }}>
+                  <span className="weak-cat-icon">🎯</span>
+                  <div>
+                    <div className="weak-cat-title">Tu categoría más débil en general</div>
+                    <div className="weak-cat-sub">{globalWeak} — {globalWeakPct}% de acierto acumulado. ¡Practica más!</div>
+                  </div>
+                  <button onClick={() => startStudy(globalWeak)}
+                    style={{ marginLeft: "auto", fontSize: 12, color: "#fbbf24", background: "transparent", border: "1px solid #78350f", borderRadius: 8, padding: "7px 14px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    Practicar →
+                  </button>
+                </div>
+              )}
+              {history.map((h) => {
+                const badgeBg = h.pct >= 70 ? "#052e16" : h.pct >= 50 ? "#1c1000" : "#1c0f0f";
+                const badgeColor = h.pct >= 70 ? "#4ade80" : h.pct >= 50 ? "#fbbf24" : "#f87171";
+                return (
+                  <div key={h.id} className="hist-item" onClick={() => setHistDetail(h)}>
+                    <div className="hist-score-badge" style={{ background: badgeBg, border: `1px solid ${badgeColor}44` }}>
+                      <span className="hist-score-pct" style={{ color: badgeColor }}>{h.pct}%</span>
+                      <span className="hist-score-label" style={{ color: badgeColor }}>{h.mode === "exam" ? "examen" : "estudio"}</span>
+                    </div>
+                    <div className="hist-item-info">
+                      <div className="hist-item-title">
+                        {h.mode === "exam" ? "📝 Examen simulado" : `📚 Estudio · ${h.studyCategory || "Todas"}`}
+                        {h.mode === "exam" && <span style={{ marginLeft: 8, fontSize: 11, color: h.passed ? "#4ade80" : "#f87171" }}>{h.passed ? "✅ Aprobado" : "❌ No aprobado"}</span>}
+                      </div>
+                      <div className="hist-item-meta">{formatDate(h.date)} · {h.score}/{h.total} correctas</div>
+                      {h.weakCat && h.weakPct < 100 && (
+                        <div className="hist-item-weak">⚠️ Débil: {h.weakCat} ({h.weakPct}%)</div>
+                      )}
+                    </div>
+                    <span style={{ color: "#475569", fontSize: 16, flexShrink: 0 }}>›</span>
+                  </div>
+                );
+              })}
+              <div style={{ textAlign: "center", marginTop: 24 }}>
+                <button onClick={async () => {
+                  if (!confirm("¿Borrar todo el historial?")) return;
+                  try { await window.storage.delete("vuela-history"); } catch {}
+                  setHistory([]);
+                }} style={{ fontSize: 12, color: "#ef4444", background: "transparent", border: "1px solid #7f1d1d", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>
+                  🗑️ Limpiar historial
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <footer className="footer"><p>Vuela — Simulador de práctica RPAS</p></footer>
+      </div>
+    );
+  }
 
   return null;
 }
