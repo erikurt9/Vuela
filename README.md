@@ -3,13 +3,19 @@
   Vuela — RPAS Exam Simulator
 </h1>
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Vite](https://img.shields.io/badge/Vite-Bundler-646CFF?logo=vite)
+![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?logo=supabase)
+
 A practice simulator for obtaining an RPAS (drone) operator credential in Chile. Study and practice with real questions based on DGAC regulations (DAN 91, DAN 151, Aeronautical Code, aviation meteorology, and more).
 
 **[Live Demo](https://vuela-pied.vercel.app/)**
 
+> This project came out of my own experience getting my drone operator license: I couldn't find a tool that properly simulated the real exam format, so I built one.
+
 ## <img src="https://unpkg.com/lucide-static@latest/icons/image.svg" width="20" height="20" /> Screenshots
 
-<!-- Replace these paths with actual images, e.g. screenshots/home.png -->
 | Home | Exam Mode | History |
 |---|---|---|
 | ![Home](screenshots/home.png) | ![Exam](screenshots/exam.png) | ![History](screenshots/history.png) |
@@ -73,4 +79,8 @@ npx cap open android
 
 ## <img src="https://unpkg.com/lucide-static@latest/icons/file-text.svg" width="20" height="20" /> License
 
-This project is for personal/educational use. Question content is based on publicly available DGAC Chile regulations.
+This project is licensed under the MIT License — see [LICENSE](./LICENSE). Question content is based on publicly available DGAC Chile regulations and is provided for educational purposes.
+
+---
+
+🇪🇸 *[Leer en español](./README.es.md)*
