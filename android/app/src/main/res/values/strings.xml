@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">vuela-rpas</string>
+    <string name="title_activity_main">vuela-rpas</string>
+    <string name="package_name">cl.vuela.app</string>
+    <string name="custom_url_scheme">cl.vuela.app</string>
+</resources>
