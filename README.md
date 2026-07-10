@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://unpkg.com/lucide-static@latest/icons/drone.svg" width="32" height="32" /><br/>
+  <img src="https://uxwing.com/wp-content/themes/uxwing/download/computers-mobile-hardware/drone-icon.svg" width="32" height="32" /><br/>
   Vuela
 </h1>
 
