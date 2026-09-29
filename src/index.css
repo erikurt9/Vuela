@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+
+  --color-canvas: #0b1120;
+  --color-surface: #131c31;
+  --color-surface-2: #1a2540;
+  --color-brand: #2f6fed;
+  --color-brand-hover: #4a82f2;
+  --color-brand-soft: #7fa6ff;
+  --color-sky: #38bdf8;
+  --color-ink: #f1f5fb;
+  --color-ink-soft: #94a3b8;
+  --color-ok: #22c55e;
+  --color-bad: #f87171;
+  --color-insight: #f59e0b;
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px -14px rgb(0 0 0 / 0.7);
+  --shadow-glow: 0 10px 34px -10px rgb(47 111 237 / 0.6);
+  --shadow-glow-sky: 0 10px 34px -10px rgb(56 189 248 / 0.5);
+
+  --animate-rise: rise 0.35s ease-out both;
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
